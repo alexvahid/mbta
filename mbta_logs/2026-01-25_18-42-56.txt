@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/home/pi/mbta/utils.py", line 443, in main
+    if get_target_pos(vehicles_local_var):
+       ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+TypeError: get_target_pos() missing 2 required positional arguments: 'debug' and 'debug_coordinates'
