@@ -9,6 +9,7 @@ import traceback
 import time
 import os
 import re
+import threading
 
 if sys.platform != 'darwin':
     import board
@@ -42,6 +43,7 @@ predictions = []
 background = None
 map = EMPTY_IMAGE
 debug_index = 0
+data_lock = threading.Lock()
 
 os.makedirs(LOG_DIR, exist_ok=True)
 PROGRAM_START_TIME = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -195,20 +197,16 @@ def calculate_target_pixels(
 
     return proj_x, proj_y
 
-def plot_icon_on_map(
-    base,
-    icon_img,
-    icon_mask,
-    target_pos
-):
+def plot_icon_on_map(base, icon_img, icon_mask, target_pos):
+    canvas = base['base_image'].copy() 
+    
     proj_x, proj_y = calculate_target_pixels(base, target_pos)
 
-    # --- Paste icon ---
     icon_x = int(proj_x - base["final_left"] - icon_img.width / 2)
     icon_y = int(proj_y - base["final_top"] - icon_img.height / 2)
 
-    base['base_image'].paste(icon_img, (icon_x, icon_y), mask=icon_mask)
-    return base['base_image']
+    canvas.paste(icon_img, (icon_x, icon_y), mask=icon_mask)
+    return canvas
 
 def plot_text_on_map(
     base,
@@ -242,9 +240,9 @@ def render_map_view(
     zoom,
     landmarks
 ):
-    TILT_AMOUNT = 0.96
+    TILT_AMOUNT = 0.85
     CROP_W, CROP_H = 128, 64
-    PRE_TILT_CROP_W, PRE_TILT_CROP_H = 2000, 2000
+    PRE_TILT_CROP_W, PRE_TILT_CROP_H = 500, 700
 
     map_width, map_height = img_map.size
     tl_lat, tl_lon = top_left_pos
@@ -373,11 +371,14 @@ def vehicle_data_refresher(route_id, direction_id, target_stop_id, stop_sequence
             target_pos = get_target_pos(vehicles_local_var, debug, debug_coordinates)
             vehicles = vehicles_local_var
 
-            if target_pos and background:
-                map = plot_icon_on_map(copy.deepcopy(background), ICON_COMPOSITE, ICON_MASK, target_pos)
-                api_refresh_seconds = 0
+            with data_lock:
+                current_bg = background 
+
+            if target_pos and current_bg:
+                map = plot_icon_on_map(current_bg, ICON_COMPOSITE, ICON_MASK, target_pos)
+                api_refresh_seconds = 0.5
             else:
-                map = empty_image
+                map = EMPTY_IMAGE
                 api_refresh_seconds = VEHICLE_REFRESH_SECONDS
                 
 
