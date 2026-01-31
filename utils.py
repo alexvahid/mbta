@@ -360,7 +360,7 @@ def vehicle_data_refresher(route_id, direction_id, target_stop_id, stop_sequence
 
             if target_pos and background:
                 map = plot_icon_on_map(background, ICON_COMPOSITE, ICON_MASK, target_pos)
-                api_refresh_seconds = 0.0
+                api_refresh_seconds = 0.5
             else:
                 map = EMPTY_IMAGE
                 api_refresh_seconds = VEHICLE_REFRESH_SECONDS
