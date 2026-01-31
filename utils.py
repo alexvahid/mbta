@@ -43,7 +43,6 @@ predictions = []
 background = None
 map = EMPTY_IMAGE
 debug_index = 0
-data_lock = threading.Lock()
 
 os.makedirs(LOG_DIR, exist_ok=True)
 PROGRAM_START_TIME = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -134,7 +133,7 @@ def get_vehicles(route_id, direction_id, start_sequence, target_stop_sequence):
             else:
                 v["state"] = BusState.AT_START_STATION
 
-        temp_vehicles.sort(key=lambda x: x["state"].value)
+        temp_vehicles.sort(key=lambda x: (x["state"].value, -(x["attributes"]["current_stop_sequence"] or 0)))
     return temp_vehicles
 
 class Perspective(Enum):
@@ -155,45 +154,33 @@ def find_coeffs(pa, pb):
 
 
 
-def calculate_target_pixels(
-    base,
-    target_pos
-):
-    # Unpack context
+def calculate_target_pixels(base, target_pos):
     tl_lat, tl_lon = base["top_left_pos"]
     br_lat, br_lon = base["bottom_right_pos"]
     map_w, map_h = base["map_size"]
-
-    center_orig_x, center_orig_y = base["center_orig_px"]
+    orig_px_x, orig_px_y = base["center_orig_px"]
     zoom = base["zoom"]
-
     pre_w, pre_h = base["pre_tilt_size"]
-    final_left = base["final_left"]
-    final_top = base["final_top"]
 
     target_lat, target_lon = target_pos
-
-    # --- Convert target lat/lon to original map pixels ---
     lon_pct = (target_lon - tl_lon) / (br_lon - tl_lon)
     lat_pct = (target_lat - tl_lat) / (br_lat - tl_lat)
+    
+    t_global_x = lon_pct * map_w
+    t_global_y = lat_pct * map_h
 
-    orig_px_x = lon_pct * map_w
-    orig_px_y = lat_pct * map_h
+    buffer_w = pre_w / zoom
+    buffer_h = pre_h / zoom
+    crop_left = orig_px_x - buffer_w / 2
+    crop_top = orig_px_y - buffer_h / 2
 
-    # --- Offset from center (in original map pixels) ---
-    dx = (orig_px_x - center_orig_x) * zoom
-    dy = (orig_px_y - center_orig_y) * zoom
+    pre_tilt_x = (t_global_x - crop_left) * zoom
+    pre_tilt_y = (t_global_y - crop_top) * zoom
 
-    # --- Pre-tilt local coordinates ---
-    local_x = pre_w / 2 + dx
-    local_y = pre_h / 2 + dy
-
-    # --- Perspective projection ---
     a, b, c, d, e, f, g, h = base["forward_coeffs"]
-    denom = g * local_x + h * local_y + 1
-
-    proj_x = (a * local_x + b * local_y + c) / denom
-    proj_y = (d * local_x + e * local_y + f) / denom
+    denom = g * pre_tilt_x + h * pre_tilt_y + 1
+    proj_x = (a * pre_tilt_x + b * pre_tilt_y + c) / denom
+    proj_y = (d * pre_tilt_x + e * pre_tilt_y + f) / denom
 
     return proj_x, proj_y
 
@@ -208,27 +195,27 @@ def plot_icon_on_map(base, icon_img, icon_mask, target_pos):
     canvas.paste(icon_img, (icon_x, icon_y), mask=icon_mask)
     return canvas
 
-def plot_text_on_map(
-    base,
-    text,
-    target_pos
-):
-    map_draw = ImageDraw.Draw(base['base_image'])
+def plot_text_on_map(base, text, target_pos):
     proj_x, proj_y = calculate_target_pixels(base, target_pos)
 
-    w, h = BRAT_FONT.getbbox(text)[2:]
+    text_x = proj_x - base["final_left"]
+    text_y = proj_y - base["final_top"]
 
-    text_x = int(proj_x - base["final_left"] - w / 2)
-    text_y = int(proj_y - base["final_top"] - h / 2)
+    screen_w, screen_h = base["crop_size"]
+    if 0 <= text_x <= screen_w and 0 <= text_y <= screen_h:
+        map_draw = ImageDraw.Draw(base['base_image'])
+        
+        bbox = BRAT_FONT.getbbox(text)
+        w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-    map_draw.text(
-        (text_x, text_y),
-        text,
-        font=BRAT_FONT,
-        stroke_width=3,
-        stroke_fill=0,
-        fill=255,
-    )
+        map_draw.text(
+            (int(text_x - w / 2), int(text_y - h / 2)),
+            text,
+            font=BRAT_FONT,
+            stroke_width=3,
+            stroke_fill=0,
+            fill=255,
+        )
 
 
 def render_map_view(
@@ -242,7 +229,7 @@ def render_map_view(
 ):
     TILT_AMOUNT = 0.85
     CROP_W, CROP_H = 128, 64
-    PRE_TILT_CROP_W, PRE_TILT_CROP_H = 500, 700
+    PRE_TILT_CROP_W, PRE_TILT_CROP_H = 500, 900
 
     map_width, map_height = img_map.size
     tl_lat, tl_lon = top_left_pos
@@ -371,12 +358,9 @@ def vehicle_data_refresher(route_id, direction_id, target_stop_id, stop_sequence
             target_pos = get_target_pos(vehicles_local_var, debug, debug_coordinates)
             vehicles = vehicles_local_var
 
-            with data_lock:
-                current_bg = background 
-
-            if target_pos and current_bg:
-                map = plot_icon_on_map(current_bg, ICON_COMPOSITE, ICON_MASK, target_pos)
-                api_refresh_seconds = 0.5
+            if target_pos and background:
+                map = plot_icon_on_map(background, ICON_COMPOSITE, ICON_MASK, target_pos)
+                api_refresh_seconds = 0.0
             else:
                 map = EMPTY_IMAGE
                 api_refresh_seconds = VEHICLE_REFRESH_SECONDS

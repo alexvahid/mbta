@@ -18,7 +18,7 @@ STOP_SEQUENCES = [390, 380, 370, 360, 350, 340, 330, 320, 310]
 # Newton Centre is 20
 # Chestnut hill is 10
 # Reservoir is 10
-ZOOM = 8
+ZOOM = 6
 
 DEBUG = False
 DEBUG_COORDINATES = [(42.335788, -71.140449)]
