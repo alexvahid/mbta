@@ -342,7 +342,7 @@ def get_target_pos(vehicles, debug, debug_coordinates):
     else:
         return None
 
-def background_refresher(img_map, top_left_pos, bottom_right_pos, landmarks, debug, debug_coordinates):
+def background_refresher(img_map, top_left_pos, bottom_right_pos, landmarks, zoom, debug, debug_coordinates):
     global background
     global vehicles
 
@@ -350,7 +350,7 @@ def background_refresher(img_map, top_left_pos, bottom_right_pos, landmarks, deb
         try:
             target_pos = get_target_pos(copy.deepcopy(vehicles), debug, debug_coordinates)
             if target_pos:
-                background = render_map_view(target_pos, img_map, top_left_pos, bottom_right_pos, Perspective.STAR_WARS, 5, landmarks)
+                background = render_map_view(target_pos, img_map, top_left_pos, bottom_right_pos, Perspective.STAR_WARS, zoom, landmarks)
 
         except Exception as e:
             print(f"API thread fetch error: {e}")
@@ -358,7 +358,7 @@ def background_refresher(img_map, top_left_pos, bottom_right_pos, landmarks, deb
 
         time.sleep(MAP_REFRESH_SECONDS)
 
-def vehicle_data_refresher(route_id, direction_id, target_stop_id, target_stop_sequence, empty_image, debug, debug_coordinates):
+def vehicle_data_refresher(route_id, direction_id, target_stop_id, stop_sequences, empty_image, debug, debug_coordinates):
     global vehicles
     global map
     global background
@@ -367,7 +367,7 @@ def vehicle_data_refresher(route_id, direction_id, target_stop_id, target_stop_s
     api_refresh_seconds = VEHICLE_REFRESH_SECONDS
     while True:
         try:
-            vehicles_local_var = get_vehicles(route_id, direction_id, target_stop_id, target_stop_sequence)
+            vehicles_local_var = get_vehicles(route_id, direction_id, target_stop_id, stop_sequences[0])
             if debug:
                 debug_index = debug_index + 1
             target_pos = get_target_pos(vehicles_local_var, debug, debug_coordinates)
@@ -400,7 +400,7 @@ def prediction_data_refresher(route_id, target_stop_id, direction_id):
 
         time.sleep(PREDICTION_REFRESH_SECONDS)
 
-def main(target_stop_sequence, screen_refresh_seconds, scroll_speed, debug, debug_coordinates):
+def main(stop_sequences, screen_refresh_seconds, scroll_speed, vehicle_text, debug, debug_coordinates):
     global vehicles
     global predictions
     global map
@@ -433,7 +433,7 @@ def main(target_stop_sequence, screen_refresh_seconds, scroll_speed, debug, debu
             now_ts = time.time()
 
             prediction_text = "--:--"
-            approaching_vehicle_status = "NO BUS "
+            approaching_vehicle_status = f"NO {vehicle_text} "
             approaching_vehicle_state = None
 
             if predictions:
@@ -452,7 +452,7 @@ def main(target_stop_sequence, screen_refresh_seconds, scroll_speed, debug, debu
                     approaching_vehicle_state = approaching_vehicle["state"]
 
                     if approaching_vehicle_state == BusState.ON_ROUTE_TO_TARGET_STOP:
-                        approaching_vehicle_status = f"{target_stop_sequence - approaching_vehicle["attributes"]["current_stop_sequence"]}"
+                        approaching_vehicle_status = f"{stop_sequences.index(approaching_vehicle["attributes"]["current_stop_sequence"])}"
                     elif approaching_vehicle_state == BusState.AT_START_STATION:
                         approaching_vehicle_status = ""
                 if debug:
