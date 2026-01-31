@@ -126,7 +126,7 @@ def get_vehicles(route_id, direction_id, start_sequence, target_stop_sequence):
             stop_seq = attrs.get("current_stop_sequence") or 0
             stop_id = rel["id"] if rel else None
 
-            if stop_seq >= target_stop_sequence:
+            if stop_seq > target_stop_sequence:
                 v["state"] = BusState.BEYOND_TARGET_STOP
             elif stop_id != start_sequence:
                 v["state"] = BusState.ON_ROUTE_TO_TARGET_STOP
@@ -448,41 +448,45 @@ def main(stop_sequences, screen_refresh_seconds, scroll_speed, vehicle_text, deb
                 prediction_minutes, prediction_seconds = re.search(r"([\d-]{1,2})([:\s][\d-]{2})", prediction_text).groups()
                 
                 pmw, pmh = prediction_font_medium.getbbox(prediction_minutes)[2:]
-                map_draw.rectangle((0, 0, pmw, pmh + 1), fill=0)
                 map_draw.text(
                     (0, 0),
                     prediction_minutes,
                     font=prediction_font_medium,
                     fill=255,
+                    stroke_width=5,
+                    stroke_fill=0,
                 )
 
                 psw, psh = brat_font.getbbox(prediction_seconds)[2:]
-                map_draw.rectangle((pmw, 0, pmw + psw, psh), fill=0)
                 map_draw.text(
                     (pmw, -4),
                     prediction_seconds,
                     font=brat_font,
                     fill=255,
+                    stroke_width=3,
+                    stroke_fill=0,
                 )
 
                 if approaching_vehicle_status:
                     mw, mh = prediction_font_medium.getbbox(approaching_vehicle_status)[2:]
-                    map_draw.rectangle((WIDTH - mw, 0, WIDTH, mh), fill=0)
                     map_draw.text(
                         (WIDTH - mw, 0),
                         approaching_vehicle_status,
                         font=prediction_font_medium,
                         fill=255,
+                        stroke_width=5,
+                        stroke_fill=0,
                     )
 
                     plus = "stops"
                     plus_w, plus_h = brat_font.getbbox(plus)[2:]
-                    map_draw.rectangle((WIDTH - mw - plus_w, 0, WIDTH - mw, plus_h), fill=0)
                     map_draw.text(
                         (WIDTH - mw - plus_w, -6),
                         plus,
                         font=brat_font,
                         fill=255,
+                        stroke_width=3,
+                        stroke_fill=0,
                     )
 
                 screen_image = map_copy
